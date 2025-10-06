@@ -80,6 +80,7 @@ class NIDSDataset(Dataset):
         self.skip_processing = skip_processing
         self.length = 0
         self.single_file = single_file
+ 
         super(NIDSDataset, self).__init__(root, transform, pre_transform)
         
     @property

@@ -21,15 +21,15 @@ def train(train_loader, model, args, device="cuda"):
         None
     """
     optimizer = torch.optim.Adam(model.parameters(), lr=args['lr']) #weight_decay=5e-4)
-    ## Dynamic LR (You can run it without this scheduler too)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5, threshold=0.01, min_lr=0.00001)
     best_model = None
     max_val = -1
-    for epoch in range(args['epochs']):
+
+    for epoch in tqdm(range(args['epochs']), desc='Epochs'):
         total_loss = 0
         model.train()
         num_graphs = 0
-        for batch in tqdm(train_loader):
+        for batch in tqdm(train_loader, desc=f'Epoch {epoch+1} batches', leave=False):
             batch.to(device)
             optimizer.zero_grad()
             pred = model(batch.x_dict,batch.edge_index_dict,batch)
@@ -39,12 +39,13 @@ def train(train_loader, model, args, device="cuda"):
             optimizer.step()
             total_loss += loss.item() * batch.num_graphs
             num_graphs += batch.num_graphs
-        total_loss /= num_graphs
+
+        total_loss /= max(1, num_graphs)
         train_acc = test(train_loader,model, device)
         scheduler.step(train_acc)
         current_lr = optimizer.param_groups[0]['lr']
         log = "Epoch {}: Train: {:.4f}, Loss: {:.4f}, Lr: {:.6f}"
-        print(log.format(epoch + 1, train_acc, total_loss,current_lr))
+        tqdm.write(log.format(epoch + 1, train_acc, total_loss,current_lr))
 
 def test(loader, model, device='cuda'):
     """
@@ -62,14 +63,14 @@ def test(loader, model, device='cuda'):
     correct = 0
     num_graphs = 0
 
-    for batch in loader:
+    for batch in tqdm(loader, desc='Evaluating', leave=False):
         batch.to(device)
         with torch.no_grad():
             pred = model(batch.x_dict,batch.edge_index_dict,batch).max(dim=1)[1]
             label = batch.y
         correct += pred.eq(label).sum().item()
         num_graphs += batch.num_graphs
-    return correct / num_graphs
+    return correct / max(1, num_graphs)
     
  
 def test_cm(loader,model, device='cuda'):
@@ -124,17 +125,27 @@ def calculate_metrics(y_pred, y_true):
  ############################################################################################################################
  
 def train_with_edge_Att(train_loader,model, args, device="cuda"):
+    """
+    Trains the model with edge attributes using the provided DataLoader, optimizer, and learning rate scheduler.
+
+    Args:
+        model (torch.nn.Module): The model to be trained.
+        train_loader (DataLoader): DataLoader for the training data.
+        args (dict): Dictionary containing training arguments like learning rate and epochs.
+        device (str): The device to run the training on (default is "cuda").
+
+    Returns:
+        None
+    """
     optimizer = torch.optim.Adam(model.parameters(), lr=args['lr']) #weight_decay=5e-4)
-    ## Dynamic LR
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5, threshold=0.01, min_lr=0.00001)
-    
     best_model = None
     max_val = -1
-    for epoch in range(args['epochs']):
+
+    for epoch in tqdm(range(args['epochs']), desc='Epochs (edge-att)'):
         total_loss = 0
         model.train()
         num_graphs = 0
-        for batch in tqdm(train_loader):
+        for batch in tqdm(train_loader, desc=f'Epoch {epoch+1} batches (edge-att)', leave=False):
             batch.to(device)
             optimizer.zero_grad()
             pred = model(batch.x_dict,batch.edge_index_dict, batch.edge_attr_dict, batch)
@@ -144,29 +155,50 @@ def train_with_edge_Att(train_loader,model, args, device="cuda"):
             optimizer.step()
             total_loss += loss.item() * batch.num_graphs
             num_graphs += batch.num_graphs
-        total_loss /= num_graphs
+        total_loss /= max(1, num_graphs)
         train_acc = test_edge(train_loader,model, device)
-        # scheduler.step(train_acc)
         current_lr = optimizer.param_groups[0]['lr']
         log = "Epoch {}: Train: {:.4f}, Loss: {:.4f}, Lr: {:.6f}"
-        print(log.format(epoch + 1, train_acc, total_loss,current_lr))
+        tqdm.write(log.format(epoch + 1, train_acc, total_loss,current_lr))
 
 def test_edge(loader,model, device='cuda'):
+    """
+    Evaluates the model with edge attributes on the provided DataLoader and calculates accuracy.
+
+    Args:
+        model (torch.nn.Module): The model to be evaluated.
+        loader (DataLoader): DataLoader for the evaluation data.
+        device (str): The device to run the evaluation on (default is "cuda").
+
+    Returns:
+        float: The accuracy of the model on the provided data.
+    """
     model.eval()
     correct = 0
     num_graphs = 0
 
-    for batch in loader:
+    for batch in tqdm(loader, desc='Evaluating (edge-att)', leave=False):
         batch.to(device)
         with torch.no_grad():
             pred = model(batch.x_dict,batch.edge_index_dict, batch.edge_attr_dict, batch).max(dim=1)[1]
             label = batch.y
         correct += pred.eq(label).sum().item()
         num_graphs += batch.num_graphs
-    return correct / num_graphs
+    return correct / max(1, num_graphs)
     
  
 def test_cm_with_edge_att(loader,model, device='cuda'):
+    """
+    Evaluates the model on the provided DataLoader, calculates accuracy, and generates predictions and labels.
+
+    Args:
+        model (torch.nn.Module): The model to be evaluated.
+        loader (DataLoader): DataLoader for the evaluation data.
+        device (str): The device to run the evaluation on (default is "cuda").
+
+    Returns:
+        tuple: The accuracy of the model, predicted labels, and true labels.
+    """
     model.eval()
     correct = 0
     num_graphs = 0
